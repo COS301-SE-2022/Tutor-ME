@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypt/crypt.dart';
+import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:tutor_me/services/models/modules.dart';
@@ -14,9 +16,10 @@ import '../models/requests.dart';
 
 class TuteeServices {
   //TODO: undo a request
-  sendRequest(String receiverId, String requesterId) async {
+  sendRequest(String receiverId, String requesterId, String moduleCode) async {
     try {
-      final url = Uri.https('tutormeapi1.azurewebsites.net', 'api/Requests');
+      final url = Uri.http(
+          'tutorme-prod.us-east-1.elasticbeanstalk.com', 'api/Requests');
       final header = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -29,7 +32,8 @@ class TuteeServices {
       final data = jsonEncode({
         'requesterId': requesterId,
         'receiverId': receiverId,
-        'dateCreated': dateCreated
+        'dateCreated': dateCreated,
+        'moduleCode': moduleCode
       });
       final response = await http.post(url, body: data, headers: header);
       if (response.statusCode == 201) {
@@ -44,8 +48,8 @@ class TuteeServices {
   }
 
   getRequests(String id) async {
-    final url =
-        Uri.https('tutormeapi1.azurewebsites.net', 'api/Requests/Tutee/$id');
+    final url = Uri.http('tutorme-prod.us-east-1.elasticbeanstalk.com',
+        'api/Requests/Tutee/$id');
     try {
       final response = await http.get(url, headers: {
         "Accept": "application/json",
@@ -69,8 +73,43 @@ class TuteeServices {
     }
   }
 
+  static deleteTutee(String id) async {
+    final header = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    try {
+      final tuteesURL = Uri.parse(
+          'http://tutorme-prod.us-east-1.elasticbeanstalk.com/api/Tutees/$id');
+      final response = await http.delete(tuteesURL, headers: header);
+      if (response.statusCode == 204) {
+        Fluttertoast.showToast(
+            msg: "Tutee Deleted",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.CENTER,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0);
+      } else {
+        Fluttertoast.showToast(
+            msg: "Failed to delete Tutee",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.CENTER,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0);
+        throw Exception(
+            'Failed to delete Tutee' + response.statusCode.toString());
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   static getTutees() async {
-    Uri tuteeURL = Uri.https('tutormeapi1.azurewebsites.net', '/api/Tutees');
+    Uri tuteeURL =
+        Uri.http('tutorme-prod.us-east-1.elasticbeanstalk.com', '/api/Tutees');
     try {
       final response = await http.get(tuteeURL, headers: {
         "Accept": "application/json",
@@ -95,8 +134,8 @@ class TuteeServices {
   }
 
   static Future getTutee(String id) async {
-    Uri tuteeURL =
-        Uri.https('tutormeapi1.azurewebsites.net', '/api/Tutees/$id');
+    Uri tuteeURL = Uri.http(
+        'tutorme-prod.us-east-1.elasticbeanstalk.com', '/api/Tutees/$id');
     try {
       final response = await http.get(tuteeURL, headers: {
         "Accept": "application/json",
@@ -120,7 +159,7 @@ class TuteeServices {
     }
   }
 
-  static registerTuee(
+  static registerTutee(
       String name,
       String lastName,
       String date,
@@ -129,7 +168,8 @@ class TuteeServices {
       String email,
       String password,
       String confirmPassword,
-      String year) async {
+      String year,
+      String course) async {
     List<Tutees> tutees = await getTutees();
     for (int i = 0; i < tutees.length; i++) {
       if (tutees[i].getEmail == email) {
@@ -137,9 +177,9 @@ class TuteeServices {
       }
     }
     final modulesURL =
-        Uri.https('tutormeapi1.azurewebsites.net', '/api/Tutees/');
+        Uri.http('tutorme-prod.us-east-1.elasticbeanstalk.com', '/api/Tutees/');
     //source: https://protocoderspoint.com/flutter-encryption-decryption-using-flutter-string-encryption/#:~:text=open%20your%20flutter%20project%20that,IDE(android%2Dstudio).&text=Then%20after%20you%20have%20added,the%20password%20the%20user%20enter.
-    // password = hashPassword(password);
+    password = hashPassword(password);
 
     String data = jsonEncode({
       'firstName': name,
@@ -148,7 +188,7 @@ class TuteeServices {
       'gender': gender,
       'status': "T",
       'faculty': "No faculty added",
-      'course': "No course added",
+      'course': course,
       'institution': institution,
       'modules': "No modules added",
       'location': "No Location added",
@@ -158,6 +198,7 @@ class TuteeServices {
       'bio': "No bio added",
       'connections': "No connections added",
       'year': year,
+      'groupIds': 'no groups'
     });
 
     final header = <String, String>{
@@ -175,6 +216,8 @@ class TuteeServices {
         final List list = json.decode(j);
         List<Tutees> tutees =
             list.map((json) => Tutees.fromObject(json)).toList();
+        //initialize the files record too
+        await createFileRecord(tutees[0].getId);
         return tutees[0];
       } else {
         throw Exception('Failed to upload ' + response.statusCode.toString());
@@ -210,18 +253,82 @@ class TuteeServices {
       'bio': tutee.getBio,
       'connections': tutee.getConnections,
       'year': tutee.getYear,
+      'groupIds': tutee.getGroupIds,
+      'requests': ''
     });
     final header = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
     };
     try {
       final id = tutee.getId;
-      final modulesURL =
-          Uri.parse('https://tutormeapi1.azurewebsites.net/api/Tutees/$id');
+      final modulesURL = Uri.parse(
+          'http://tutorme-prod.us-east-1.elasticbeanstalk.com/api/Tutees/$id');
       final response = await http.put(modulesURL, headers: header, body: data);
       if (response.statusCode == 204) {
         return tutee;
       } else {
+        throw Exception('Failed to update' + response.statusCode.toString());
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  static updateTuteeByEmail(String oldEmail, String newEmail) async {
+    Tutees tutee = await getTuteeByEmail(oldEmail);
+    if (isThereTuteeByEmail(newEmail) == false) {
+      tutee.setEmail = newEmail;
+      await TuteeServices.updateTutee(tutee);
+    }
+
+    String data = jsonEncode({
+      'id': tutee.getId,
+      'firstName': tutee.getName,
+      'lastName': tutee.getLastName,
+      'dateOfBirth': tutee.getDateOfBirth,
+      'gender': tutee.getGender,
+      'status': tutee.getStatus,
+      'faculty': tutee.getFaculty,
+      'course': tutee.getCourse,
+      'institution': tutee.getInstitution,
+      'modules': tutee.getModules,
+      'location': tutee.getLocation,
+      'tutorsCode': tutee.getTutorsCode,
+      'email': newEmail,
+      'password': tutee.getPassword,
+      'bio': tutee.getBio,
+      'connections': tutee.getConnections,
+      'year': tutee.getYear,
+      'groupIds': tutee.getGroupIds,
+      'requests': ''
+    });
+    final header = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    try {
+      final id = tutee.getId;
+      final modulesURL = Uri.parse(
+          'http://tutorme-prod.us-east-1.elasticbeanstalk.com/api/Tutees/$id');
+      final response = await http.put(modulesURL, headers: header, body: data);
+      if (response.statusCode == 204) {
+        Fluttertoast.showToast(
+            msg: "Tutee Email Updated",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.CENTER,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0);
+        return tutee;
+      } else {
+        Fluttertoast.showToast(
+            msg: "Failed To Update Tutee Email",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.CENTER,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0);
         throw Exception('Failed to update' + response.statusCode.toString());
       }
     } catch (e) {
@@ -249,14 +356,34 @@ class TuteeServices {
     }
   }
 
+  static createFileRecord(String id) async {
+    String data =
+        jsonEncode({'id': id, 'tuteeImage': '', 'tuteeTranscript': ''});
+    final header = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8'
+    };
+    final url = Uri.parse(
+        'http://filesystem-prod.us-east-1.elasticbeanstalk.com/api/TuteeFiles');
+    try {
+      final response = await http.post(url, headers: header, body: data);
+      if (response.statusCode == 201) {
+        return true;
+      } else {
+        throw "failed to upload";
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   static uploadProfileImage(File? image, String id) async {
     final imageByte = base64Encode(image!.readAsBytesSync());
     String data = jsonEncode({'id': id, 'tutorImage': imageByte});
     final header = <String, String>{
       'Content-Type': 'application/json; charset=utf-8'
     };
-    final url =
-        Uri.parse('https://tutormefiles1.azurewebsites.net/api/TuteeFiles/$id');
+    final url = Uri.parse(
+        'http://filesystem-prod.us-east-1.elasticbeanstalk.com/api/TuteeFiles/$id');
     try {
       final response = await http.put(url, headers: header, body: data);
       if (response.statusCode == 204) {
@@ -270,8 +397,9 @@ class TuteeServices {
   }
 
   static Future getTuteeProfileImage(String id) async {
-    Uri tuteeURL =
-        Uri.https('tutormefiles1.azurewebsites.net', 'api/TuteeFiles/$id');
+    Uri tuteeURL = Uri.http(
+        'http://filesystem-prod.us-east-1.elasticbeanstalk.com',
+        'api/TuteeFiles/$id');
     try {
       final response = await http.get(tuteeURL, headers: {
         "Accept": "application/json",
@@ -306,7 +434,8 @@ class TuteeServices {
     late Tutees tutee;
     bool got = false;
     for (int i = 0; i < tutees.length; i++) {
-      if (tutees[i].getEmail == email && tutees[i].getPassword == password) {
+      if (tutees[i].getEmail == email &&
+          tutees[i].getPassword == hashPassword(password)) {
         got = true;
         tutee = tutees[i];
         break;
@@ -331,6 +460,14 @@ class TuteeServices {
       }
     }
     if (got == false) {
+      Fluttertoast.showToast(
+          msg: "Email is incorrect",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+          fontSize: 16.0);
       throw Exception("Email is incorrect");
     } else {
       return tutee;
@@ -354,7 +491,9 @@ class TuteeServices {
   }
 
   static hashPassword(String password) {
-    String hashedPassword = Crypt.sha256(password).toString();
+    String hashedPassword =
+        Crypt.sha256(password, salt: 'Thisisagreatplatformforstudentstolearn')
+            .toString();
     return hashedPassword;
   }
 }

@@ -21,13 +21,16 @@ namespace Api.Data
 
         public virtual DbSet<Module> Modules { get; set; }
         public virtual DbSet<Request> Requests { get; set; }
+        public virtual DbSet<Admin> Admin { get; set; }
         public virtual DbSet<Tutee> Tutees { get; set; }
         public virtual DbSet<Tutor> Tutors { get; set; }
+        public virtual DbSet<Group> Group { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Module>(entity =>
-            {
+            modelBuilder.Entity<Module>(entity =>{
+                entity.ToTable("Module");
+
                 entity.HasKey(e => e.Code)
                     .HasName("PK__Modules__357D4CF8AD050163");
 
@@ -60,8 +63,36 @@ namespace Api.Data
                     .HasColumnName("moduleName");
             });
 
+            modelBuilder.Entity<Admin>(entity =>{
+
+                entity.ToTable("Admin");
+
+                entity.Property(e => e.Id)
+                    .HasMaxLength(800)
+                    .IsUnicode(false)
+                    .HasColumnName("id");
+
+                entity.Property(e => e.Name)
+                    .IsRequired()
+                    .IsUnicode(false)
+                    .HasColumnName("name");
+
+                entity.Property(e => e.Email)
+                    .IsRequired()
+                    .HasMaxLength(50)
+                    .IsUnicode(false)
+                    .HasColumnName("email");
+
+                entity.Property(e => e.Password)
+                    .IsRequired()
+                    .IsUnicode(false)
+                    .HasColumnName("password");
+            });
+
             modelBuilder.Entity<Request>(entity =>
             {
+                entity.ToTable("Request");
+
                 entity.Property(e => e.Id)
                     .HasColumnName("id")
                     .HasDefaultValueSql("(newid())");
@@ -83,6 +114,49 @@ namespace Api.Data
                     .HasMaxLength(36)
                     .IsUnicode(false)
                     .HasColumnName("requesterId");
+
+                entity.Property(e => e.ModuleCode)
+                    .IsRequired()
+                    .IsUnicode(false)
+                    .HasColumnName("moduleCode");
+            });
+
+            modelBuilder.Entity<Group>(entity =>
+            {
+                entity.ToTable("Group");
+
+                entity.Property(e => e.Id)
+                    .HasColumnName("id")
+                    .HasDefaultValueSql("(newid())");
+
+                entity.Property(e => e.ModuleCode)
+                    .IsRequired()
+                    .HasMaxLength(10)
+                    .IsUnicode(false)
+                    .HasColumnName("moduleCode");
+
+                entity.Property(e => e.ModuleName)
+                    .IsRequired()
+                    .IsUnicode(false)
+                    .HasColumnName("moduleName");
+
+                entity.Property(e => e.Tutees)
+                    .IsRequired()
+                    .HasMaxLength(36)
+                    .IsUnicode(false)
+                    .HasColumnName("tutees");
+
+                entity.Property(e => e.TutorId)
+                    .IsRequired()
+                    .HasMaxLength(36)
+                    .IsUnicode(false)
+                    .HasColumnName("tutorId");
+                
+                entity.Property(e => e.Description)
+                    .IsRequired()
+                    .IsUnicode(false)
+                    .HasColumnName("description");
+
             });
 
             modelBuilder.Entity<Tutee>(entity =>
@@ -172,10 +246,14 @@ namespace Api.Data
                     .IsRequired()
                     .IsUnicode(false)
                     .HasColumnName("year");
+
+                entity.Property(e => e.GroupIds)
+                    .IsUnicode(false)
+                    .HasColumnName("groupIds");
             });
 
-            modelBuilder.Entity<Tutor>(entity =>
-            {
+            modelBuilder.Entity<Tutor>(entity =>{
+
                 entity.ToTable("Tutor");
 
                 entity.Property(e => e.Id)
@@ -247,10 +325,9 @@ namespace Api.Data
 
                 entity.Property(e => e.Rating)
                     .IsRequired()
-                    .HasMaxLength(1)
                     .IsUnicode(false)
                     .HasColumnName("rating")
-                    .HasDefaultValueSql("((0))");
+                    .HasDefaultValueSql("('0,0')");
 
                 entity.Property(e => e.Requests)
                     .IsUnicode(false)
@@ -271,11 +348,17 @@ namespace Api.Data
                     .IsRequired()
                     .IsUnicode(false)
                     .HasColumnName("year");
+
+                entity.Property(e => e.GroupIds)
+                    .IsUnicode(false)
+                    .HasColumnName("groupIds");
             });
 
             OnModelCreatingPartial(modelBuilder);
         }
 
         partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+
+      
     }
 }
